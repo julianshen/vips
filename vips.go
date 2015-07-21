@@ -344,7 +344,7 @@ const (
 	CUSTOM
 )
 
-func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight, customLeft, customTop, int, gravity Gravity) (int, int) {
+func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight, customLeft, customTop int, gravity Gravity) (int, int) {
 	left, top := 0, 0
 	switch gravity {
 	case NORTH:
