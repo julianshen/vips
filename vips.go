@@ -64,6 +64,8 @@ type Options struct {
 	Interpolator Interpolator
 	Gravity      Gravity
 	Quality      int
+	Left         int
+	Top          int
 }
 
 func init() {
@@ -283,7 +285,7 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		if o.Crop {
 			// Crop
 			debug("cropping")
-			left, top := sharpCalcCrop(affinedWidth, affinedHeight, o.Width, o.Height, o.Gravity)
+			left, top := sharpCalcCrop(affinedWidth, affinedHeight, o.Width, o.Height, o.Left, o.Top, o.Gravity)
 			o.Width = int(math.Min(float64(affinedWidth), float64(o.Width)))
 			o.Height = int(math.Min(float64(affinedHeight), float64(o.Height)))
 			err := C.vips_extract_area_0(image, &tmpImage, C.int(left), C.int(top), C.int(o.Width), C.int(o.Height))
@@ -339,9 +341,10 @@ const (
 	EAST
 	SOUTH
 	WEST
+	CUSTOM
 )
 
-func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight int, gravity Gravity) (int, int) {
+func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight, customLeft, customTop, int, gravity Gravity) (int, int) {
 	left, top := 0, 0
 	switch gravity {
 	case NORTH:
@@ -354,6 +357,18 @@ func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight int, gravity Gravity) 
 		top = inHeight - outHeight
 	case WEST:
 		top = (inHeight - outHeight + 1) / 2
+	case CUSTOM:
+		if customLeft + outWidth > inWidth {
+			left = inWidth - outWidth
+		} else {
+			left = customLeft
+		}
+
+		if customTop + outHeight > inHeight {
+			top = inHeight - outHeight
+		} else {
+			top = customTop
+		}
 	default:
 		left = (inWidth - outWidth + 1) / 2
 		top = (inHeight - outHeight + 1) / 2
