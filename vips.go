@@ -286,6 +286,7 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 			// Crop
 			debug("cropping")
 			left, top := sharpCalcCrop(affinedWidth, affinedHeight, o.Width, o.Height, o.Left, o.Top, o.Gravity)
+			fmt.Println("[VIPS] left, top = ", left, top)
 			o.Width = int(math.Min(float64(affinedWidth), float64(o.Width)))
 			o.Height = int(math.Min(float64(affinedHeight), float64(o.Height)))
 			err := C.vips_extract_area_0(image, &tmpImage, C.int(left), C.int(top), C.int(o.Width), C.int(o.Height))
