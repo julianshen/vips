@@ -360,13 +360,13 @@ func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight int, customLeftPos, cu
 	case CUSTOM:
 		customLeft := float32(inWidth) * customLeftPos
 		customTop := float32(inHeight) * customTopPos
-		if customLeft + outWidth > inWidth {
+		if customLeft + float32(outWidth) > float32(inWidth) {
 			left = inWidth - outWidth
 		} else {
 			left = int(customLeft)
 		}
 
-		if customTop + outHeight > inHeight {
+		if customTop + float32(outHeight) > float32(inHeight) {
 			top = inHeight - outHeight
 		} else {
 			top = int(customTop)
