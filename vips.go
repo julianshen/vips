@@ -64,8 +64,8 @@ type Options struct {
 	Interpolator Interpolator
 	Gravity      Gravity
 	Quality      int
-	Left         int
-	Top          int
+	LeftPos      float32
+	TopPos       float32
 }
 
 func init() {
@@ -285,8 +285,7 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		if o.Crop {
 			// Crop
 			debug("cropping")
-			left, top := sharpCalcCrop(affinedWidth, affinedHeight, o.Width, o.Height, o.Left, o.Top, o.Gravity)
-			fmt.Println("[VIPS] inWidth, iHeight, outWidth, outHeightm left, top = ", affinedWidth, affinedHeight, o.Width, o.Height, left, top)
+			left, top := sharpCalcCrop(affinedWidth, affinedHeight, o.Width, o.Height, o.LeftPos, o.TopPos, o.Gravity)
 			o.Width = int(math.Min(float64(affinedWidth), float64(o.Width)))
 			o.Height = int(math.Min(float64(affinedHeight), float64(o.Height)))
 			err := C.vips_extract_area_0(image, &tmpImage, C.int(left), C.int(top), C.int(o.Width), C.int(o.Height))
@@ -345,7 +344,7 @@ const (
 	CUSTOM
 )
 
-func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight, customLeft, customTop int, gravity Gravity) (int, int) {
+func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight int, customLeftPos, customTopPos float32, gravity Gravity) (int, int) {
 	left, top := 0, 0
 	switch gravity {
 	case NORTH:
@@ -359,16 +358,18 @@ func sharpCalcCrop(inWidth, inHeight, outWidth, outHeight, customLeft, customTop
 	case WEST:
 		top = (inHeight - outHeight + 1) / 2
 	case CUSTOM:
+		customLeft := float32(inWidth) * customLeftPos
+		customTop := float32(inHeight) * customTopPos
 		if customLeft + outWidth > inWidth {
 			left = inWidth - outWidth
 		} else {
-			left = customLeft
+			left = int(customLeft)
 		}
 
 		if customTop + outHeight > inHeight {
 			top = inHeight - outHeight
 		} else {
-			top = customTop
+			top = int(customTop)
 		}
 	default:
 		left = (inWidth - outWidth + 1) / 2
