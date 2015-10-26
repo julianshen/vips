@@ -79,3 +79,45 @@ vips_pngsave_custom(VipsImage *in, void **buf, size_t *len, int strip, int quali
 {
     return vips_pngsave_buffer(in, buf, len, "interlace", interlace, NULL);
 }
+
+int
+vips_exif_orientation(VipsImage *image) {
+	int orientation = 0;
+	const char *exif;
+	if (
+		vips_image_get_typeof(image, "exif-ifd0-Orientation") != 0 &&
+		!vips_image_get_string(image, "exif-ifd0-Orientation", &exif)
+	) {
+		orientation = atoi(&exif[0]);
+	}
+	return orientation;
+}
+
+int
+vips_rotate(VipsImage *in, VipsImage **out, int angle) {
+	int rotate = VIPS_ANGLE_D0;
+
+	if (angle == 90) {
+		rotate = VIPS_ANGLE_D90;
+	} else if (angle == 180) {
+		rotate = VIPS_ANGLE_D180;
+	} else if (angle == 270) {
+		rotate = VIPS_ANGLE_D270;
+	}
+
+    return vips_rot(in, out, rotate, NULL);
+}
+
+int
+vips_autorotate(VipsImage *in, VipsImage **out) {
+    return vips_autorot(in, out, NULL);
+}
+
+int
+vips_flip_bridge(VipsImage *in, VipsImage **out, int direction) {
+	return vips_flip(in, out, direction, NULL);
+}
+
+int vips_remove_exif(VipsImage *image, const char *field) {
+    return vips_image_remove(image, field);
+}

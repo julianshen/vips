@@ -14,6 +14,7 @@ import (
 	"os"
 	"runtime"
 	"unsafe"
+	"strconv"
 )
 
 const DEBUG = false
@@ -53,6 +54,22 @@ var interpolations = map[Interpolator]string{
 	NOHALO:   "nohalo",
 }
 
+type Angle int
+
+const (
+	D0   Angle = 0
+	D90  Angle = 90
+	D180 Angle = 180
+	D270 Angle = 270
+)
+
+type Direction int
+
+const (
+	HORIZONTAL Direction = C.VIPS_DIRECTION_HORIZONTAL
+	VERTICAL   Direction = C.VIPS_DIRECTION_VERTICAL
+)
+
 func (i Interpolator) String() string { return interpolations[i] }
 
 type Options struct {
@@ -68,6 +85,10 @@ type Options struct {
 	LeftPos      float32
 	TopPos       float32
 	Savetype     ImageType
+	NoAutoRotate bool
+	Rotate Angle
+	Flip bool
+	Flop bool
 }
 
 func init() {
@@ -394,4 +415,186 @@ func debug(format string, args ...interface{}) {
 		return
 	}
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
+}
+
+func catchVipsError() error {
+	s := C.GoString(C.vips_error_buffer())
+	C.vips_error_clear()
+	C.vips_thread_shutdown()
+	return errors.New(s)
+}
+
+func vipsExifOrientation(image *C.struct__VipsImage) int {
+	orientation := int(C.vips_exif_orientation(image))
+	return orientation
+}
+
+func vipsRotate(image *C.struct__VipsImage, angle Angle) (*C.struct__VipsImage, error) {
+	var out *C.VipsImage
+	defer C.g_object_unref(C.gpointer(image))
+
+	err := C.vips_rotate(image, &out, C.int(angle))
+	if err != 0 {
+		return nil, catchVipsError()
+	}
+
+	return out, nil
+}
+
+func vipsFlip(image *C.struct__VipsImage, direction Direction) (*C.struct__VipsImage, error) {
+	var out *C.VipsImage
+	defer C.g_object_unref(C.gpointer(image))
+
+	err := C.vips_flip_bridge(image, &out, C.int(direction))
+	if err != 0 {
+		return nil, catchVipsError()
+	}
+
+	return out, nil
+}
+
+func getAngle(angle Angle) Angle {
+	divisor := angle % 90
+	if divisor != 0 {
+		angle = angle - divisor
+	}
+
+	debug("Angle:" + strconv.Itoa(int(angle)))
+	return Angle(math.Min(float64(angle), 270))
+}
+
+func calculateRotationAndFlip(image *C.struct__VipsImage, angle Angle) (Angle, bool) {
+	rotate := D0
+	flip := false
+
+	if angle > 0 {
+		return rotate, flip
+	}
+
+	switch vipsExifOrientation(image) {
+	case 6:
+		rotate = D90
+		break
+	case 3:
+		rotate = D180
+		break
+	case 8:
+		rotate = D270
+		break
+	case 2:
+		flip = true
+		break // flip 1
+	case 7:
+		flip = true
+		rotate = D90
+		break // flip 6
+	case 4:
+		flip = true
+		rotate = D180
+		break // flip 3
+	case 5:
+		flip = true
+		rotate = D270
+		break // flip 8
+	}
+
+	return rotate, flip
+}
+
+func rotateAndFlipImage(image *C.struct__VipsImage, o Options) (*C.struct__VipsImage, error) {
+	var err error
+	var direction Direction = -1
+
+	if o.NoAutoRotate == false {
+		rotation, flip := calculateRotationAndFlip(image, o.Rotate)
+		if flip {
+			o.Flip = flip
+		}
+		if rotation > D0 && o.Rotate == 0 {
+			o.Rotate = rotation
+		}
+	}
+
+	if o.Rotate > 0 {
+		image, err = vipsRotate(image, getAngle(o.Rotate))
+	}
+
+	if o.Flip {
+		direction = HORIZONTAL
+	} else if o.Flop {
+		direction = VERTICAL
+	}
+
+	if direction != -1 {
+		image, err = vipsFlip(image, direction)
+	}
+
+	return image, err
+}
+
+func AutoRotate(buf []byte, o Options) ([]byte, error) {
+	debug("%#+v", o)
+
+   	// detect (if possible) the file type
+   	typ := UNKNOWN
+   	switch {
+   	case bytes.Equal(buf[:2], MARKER_JPEG):
+   		typ = JPEG
+   	case bytes.Equal(buf[:2], MARKER_PNG):
+   		typ = PNG
+   	default:
+   		return nil, errors.New("unknown image format")
+   	}
+
+   	// create an image instance
+   	var image, tmpImage *C.struct__VipsImage
+
+	// feed it
+   	switch typ {
+   	case JPEG:
+   		C.vips_jpegload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
+   	case PNG:
+   		C.vips_pngload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
+   	}
+
+	// cleanup
+   	defer func() {
+   		C.vips_thread_shutdown()
+   		C.vips_error_clear()
+   	}()
+
+	rotate,flip :=calculateRotationAndFlip(image, 0)
+
+	if(rotate == 0 && !flip) {
+		return nil, nil //Remain unchanged
+	}
+
+	ret := C.vips_autorotate(image, &tmpImage)
+
+	if ret != 0 {
+		return nil, catchVipsError()
+	}
+
+	if o.Quality == 0 {
+		o.Quality = 100
+	}
+
+	length := C.size_t(0)
+	var ptr unsafe.Pointer
+
+	switch o.Savetype {
+		case WEBP:
+			C.vips_webpsave_custom(tmpImage, &ptr, &length, C.int(o.Quality))
+		case PNG:
+			C.vips_pngsave_custom(tmpImage, &ptr, &length, 1, C.int(o.Quality), 0)
+		default:
+			C.vips_jpegsave_custom(tmpImage, &ptr, &length, 1, C.int(o.Quality), 0)
+	}
+
+	C.g_object_unref(C.gpointer(tmpImage))
+
+	// get back the buffer
+	buf = C.GoBytes(ptr, C.int(length))
+	C.g_free(C.gpointer(ptr))
+	return buf, nil
 }
