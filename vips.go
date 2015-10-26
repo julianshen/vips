@@ -532,11 +532,11 @@ func rotateAndFlipImage(image *C.struct__VipsImage, o Options) (*C.struct__VipsI
 	return image, err
 }
 
-func AutoRotate(buf []byte, o Options) ([]byte, error) {
+func AutoRotate(file string, o Options) ([]byte, error) {
 	debug("%#+v", o)
 
    	// detect (if possible) the file type
-   	typ := UNKNOWN
+   	/*typ := UNKNOWN
    	switch {
    	case bytes.Equal(buf[:2], MARKER_JPEG):
    		typ = JPEG
@@ -555,13 +555,21 @@ func AutoRotate(buf []byte, o Options) ([]byte, error) {
    		C.vips_jpegload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
    	case PNG:
    		C.vips_pngload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
-   	}
+   	}*/
+	// create an image instance
+   	var image, tmpImage *C.struct__VipsImage
+
+	image = C.vips_load_from_file(C.CString(file))
 
 	// cleanup
    	defer func() {
    		C.vips_thread_shutdown()
    		C.vips_error_clear()
    	}()
+
+	if image == nil {
+		return nil, catchVipsError()
+	}
 
 	rotate,flip :=calculateRotationAndFlip(image, 0)
 
@@ -594,6 +602,7 @@ func AutoRotate(buf []byte, o Options) ([]byte, error) {
 	C.g_object_unref(C.gpointer(tmpImage))
 
 	// get back the buffer
+	var buf []byte
 	buf = C.GoBytes(ptr, C.int(length))
 	C.g_free(C.gpointer(ptr))
 	return buf, nil

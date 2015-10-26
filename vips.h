@@ -118,6 +118,12 @@ vips_flip_bridge(VipsImage *in, VipsImage **out, int direction) {
 	return vips_flip(in, out, direction, NULL);
 }
 
-int vips_remove_exif(VipsImage *image, const char *field) {
+int
+vips_remove_exif(VipsImage *image, const char *field) {
     return vips_image_remove(image, field);
+}
+
+VipsImage*
+vips_load_from_file(char *file) {
+    return vips_image_new_from_file(file, NULL);
 }
