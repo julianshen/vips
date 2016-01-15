@@ -39,6 +39,11 @@ vips_webpload_buffer_custom(void *buf, size_t len, VipsImage **out)
 };
 
 int
+vips_magickload_buffer_custom( void *buf, size_t len, VipsImage **out) {
+    return vips_magickload_buffer(buf, len, out, NULL);
+}
+
+int
 vips_shrink_0(VipsImage *in, VipsImage **out, double xshrink, double yshrink)
 {
     return vips_shrink(in, out, xshrink, yshrink, NULL);

@@ -145,8 +145,8 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		typ = PNG
     case bytes.Equal(buf[:4], MARKER_RIFF) && bytes.Equal(buf[8:12], MARKER_WEBP):
         typ = WEBP
-	default:
-		return nil, errors.New("unknown image format")
+	//default:
+	//	return nil, errors.New("unknown image format")
 	}
 
 	// create an image instance
@@ -160,6 +160,12 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		C.vips_pngload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
     case WEBP:
         C.vips_webpload_buffer_custom(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
+    default:
+        ret := C.vips_magickload_buffer_custom(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
+        
+        if ret == -1 {
+            return nil, errors.New("-- unknown image format")
+        }
 	}
 
 	// cleanup
