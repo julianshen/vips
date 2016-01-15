@@ -22,6 +22,8 @@ const DEBUG = false
 var (
 	MARKER_JPEG = []byte{0xff, 0xd8}
 	MARKER_PNG  = []byte{0x89, 0x50}
+    MARKER_WEBP  = []byte{0x57, 0x45, 0x42, 0x50}
+    MARKER_RIFF  = []byte{0x52, 0x49, 0x46, 0x46}
 )
 
 type ImageType int
@@ -141,6 +143,8 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		typ = JPEG
 	case bytes.Equal(buf[:2], MARKER_PNG):
 		typ = PNG
+    case bytes.Equal(buf[:4], MARKER_RIFF) && bytes.Equal(buf[8:12], MARKER_WEBP):
+        typ = WEBP
 	default:
 		return nil, errors.New("unknown image format")
 	}
@@ -154,6 +158,8 @@ func Resize(buf []byte, o Options) ([]byte, error) {
 		C.vips_jpegload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
 	case PNG:
 		C.vips_pngload_buffer_seq(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
+    case WEBP:
+        C.vips_webpload_buffer_custom(unsafe.Pointer(&buf[0]), C.size_t(len(buf)), &image)
 	}
 
 	// cleanup
